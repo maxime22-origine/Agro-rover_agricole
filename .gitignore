@@ -1,0 +1,37 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+
+# ROS 2 (dossiers créés par colcon)
+build/
+install/
+log/
+
+# Secrets et configuration locale
+.env
+*.key
+*.pem
+wpa_supplicant.conf
+
+# MATLAB / Simulink
+*.asv
+*.slxc
+slprj/
+
+# Arduino
+*.hex
+*.elf
+
+# Fichiers temporaires de bureautique
+~$*
+*.tmp
+
+# Systèmes et éditeurs
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
