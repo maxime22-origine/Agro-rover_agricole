@@ -6,7 +6,7 @@ Rover à quatre roues motrices capable d'être piloté depuis un navigateur web,
 
 Projet d'ingénierie de 4ᵉ année, filière Mécatronique-Robotique, JUNIA HEI (septembre 2025 – avril 2026).
 
-![Le rover AGROVER](photo_rover.jpg)
+![Le rover AGROVER](photo_rover.jpeg)
 
 ## Ce que fait le rover
 
