@@ -200,14 +200,6 @@ Prévu mais non réalisé faute de temps :
 
 Projet AGROVER MR 25.26, mené par cinq étudiants de JUNIA HEI :
 
-| Rôle | Membre |
-|---|---|
-| Chef de projet | Mouhamadou Bassirou SAGNA |
-| Mécanique et énergie | Natacha NGWANA TEKALA |
-| Embarqué et contrôle | Vinny Juniors NGON |
-| Perception et navigation | Yann Chanel YOUMBI NGANGOM |
-| IHM et données | Joel Maxime NJAMEN |
-
 ## Licence
 
 Code distribué sous licence MIT, voir le fichier `LICENSE`.
