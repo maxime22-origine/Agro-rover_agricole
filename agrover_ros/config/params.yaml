@@ -1,0 +1,27 @@
+# ============================================================
+#  AGROVER MR 25.26 — Paramètres du nœud ROS2
+#  !! MESURER ces valeurs sur le robot physique !!
+# ============================================================
+
+agrover_node:
+  ros__parameters:
+
+    # ── Port série OpenCR ──────────────────────────────────────
+    serial_port: '/dev/ttyACM0'
+    baud_rate: 115200
+
+    # ── Paramètres cinématiques (À MESURER) ───────────────────
+    # wheel_radius : rayon de la roue motrice en mètres
+    #   → Mesurer le diamètre extérieur et diviser par 2
+    #   → Exemple : roue de 100mm de diamètre → r = 0.05 m
+    wheel_radius: 0.0325
+
+    # track_width : distance entre le centre des roues gauche et droite
+    #   → Mesurer la distance entre les plans médians des roues
+    #   → Exemple : 300mm → L = 0.30 m
+    track_width: 0.155
+
+    # ── Frames TF ─────────────────────────────────────────────
+    odom_frame:  'odom'
+    base_frame:  'base_link'
+    publish_tf:  true

@@ -1,0 +1,32 @@
+# ============================================================
+#  AGROVER MR 25.26 — Configuration twist_mux
+#  Arbitrage entre mode MANUEL et AUTONOME
+#
+#  Priorités (plus le chiffre est grand, plus c'est prioritaire)
+#  STOP urgence (255) > Manuel IHM (100) > Nav2 autonome (10)
+# ============================================================
+
+twist_mux:
+  ros__parameters:
+    topics:
+      # Nav2 (navigation autonome) — basse priorité
+      navigation:
+        topic    : /cmd_vel/nav
+        timeout  : 0.5
+        priority : 10
+
+      # IHM Web manuelle — haute priorité
+      manual:
+        topic    : /cmd_vel/manual
+        timeout  : 0.5
+        priority : 100
+
+    locks:
+      # Arrêt d'urgence — priorité absolue
+      estop:
+        topic    : /agrover/estop
+        timeout  : 0.0
+        priority : 255
+
+    # Topic de sortie vers agrover_node
+    output_topic: /cmd_vel

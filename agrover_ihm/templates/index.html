@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"/>
+<title>AGROVER MR 25.26</title>
+<script src="https://cdn.jsdelivr.net/npm/roslib@1/build/roslib.min.js"></script>
+<style>
+/* ── Reset & base ─────────────────────────────────────────── */
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+     background:#0f1117;color:#e2e8f0;height:100vh;overflow:hidden;
+     display:flex;flex-direction:column}
+
+/* ── Header ──────────────────────────────────────────────── */
+#header{background:#1a1d27;border-bottom:1px solid #2d3148;
+        padding:0 16px;height:52px;display:flex;align-items:center;
+        gap:12px;flex-shrink:0;z-index:10}
+#logo{font-weight:700;font-size:15px;color:#7c93ff;letter-spacing:.5px;
+      white-space:nowrap}
+#mode-badge{padding:3px 10px;border-radius:20px;font-size:11px;
+            font-weight:600;text-transform:uppercase;letter-spacing:.5px;
+            background:#1e2235;color:#94a3b8;border:1px solid #2d3148;
+            transition:all .3s}
+#mode-badge.bringup{background:#0f2a1a;color:#4ade80;border-color:#166534}
+#mode-badge.slam   {background:#1a1a0a;color:#facc15;border-color:#854d0e}
+#mode-badge.nav    {background:#0a1a2a;color:#60a5fa;border-color:#1d4ed8}
+.hflex{display:flex;align-items:center;gap:8px;margin-left:auto}
+.dot{width:8px;height:8px;border-radius:50%;background:#ef4444}
+.dot.on{background:#22c55e;box-shadow:0 0 6px #22c55e88}
+#ros-lbl{font-size:11px;color:#64748b}
+#estop-btn{background:#dc2626;color:#fff;border:none;border-radius:6px;
+           padding:6px 14px;font-size:12px;font-weight:700;cursor:pointer;
+           letter-spacing:.5px}
+#estop-btn:active{background:#991b1b;transform:scale(.97)}
+
+/* ── Main layout ─────────────────────────────────────────── */
+#main{display:grid;grid-template-columns:1fr 340px;flex:1;overflow:hidden;gap:0}
+
+/* ── Map panel ───────────────────────────────────────────── */
+#map-panel{position:relative;background:#090b10;overflow:hidden;
+           display:flex;flex-direction:column}
+#map-toolbar{background:#1a1d27cc;backdrop-filter:blur(4px);
+             border-bottom:1px solid #2d3148;
+             padding:6px 12px;display:flex;align-items:center;gap:8px;
+             font-size:12px;color:#94a3b8;flex-shrink:0}
+#map-toolbar button{background:#1e2235;border:1px solid #2d3148;color:#94a3b8;
+                    border-radius:5px;padding:3px 9px;font-size:11px;
+                    cursor:pointer}
+#map-toolbar button:hover{background:#2d3148;color:#e2e8f0}
+#map-toolbar button.active{background:#1d3057;color:#60a5fa;
+                            border-color:#2563eb}
+#goal-mode-btn.active{background:#1a2a0f;color:#86efac;border-color:#16a34a}
+#map-canvas{flex:1;cursor:crosshair;display:block;width:100%;height:100%}
+#map-coords{position:absolute;bottom:8px;left:10px;
+            background:#0f1117cc;color:#64748b;font-size:10px;
+            padding:3px 8px;border-radius:4px;font-family:monospace}
+#goal-info{position:absolute;bottom:8px;right:10px;
+           background:#0f2a1a;color:#4ade80;font-size:11px;
+           padding:4px 10px;border-radius:4px;display:none}
+#nav-status{position:absolute;top:48px;left:50%;transform:translateX(-50%);
+            background:#0a1a2acc;color:#60a5fa;font-size:12px;
+            padding:4px 14px;border-radius:20px;display:none;
+            border:1px solid #1d4ed8}
+
+/* ── Right panel ─────────────────────────────────────────── */
+#right-panel{background:#13151f;border-left:1px solid #1e2235;
+             overflow-y:auto;display:flex;flex-direction:column;gap:0}
+
+/* ── Sections ────────────────────────────────────────────── */
+.section{border-bottom:1px solid #1e2235;padding:12px 14px}
+.sec-title{font-size:10px;font-weight:600;color:#475569;
+           text-transform:uppercase;letter-spacing:.8px;
+           margin-bottom:10px}
+
+/* ── Camera ──────────────────────────────────────────────── */
+#cam-wrap{width:100%;aspect-ratio:4/3;background:#090b10;
+          border-radius:6px;overflow:hidden;position:relative}
+#cam-img{width:100%;height:100%;object-fit:cover;display:block}
+#cam-err{position:absolute;inset:0;display:none;align-items:center;
+         justify-content:center;color:#475569;font-size:12px}
+
+/* ── Mode buttons ────────────────────────────────────────── */
+.mode-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.mode-btn{background:#1e2235;border:1px solid #2d3148;color:#94a3b8;
+          border-radius:7px;padding:10px 8px;font-size:12px;
+          font-weight:600;cursor:pointer;transition:all .2s;
+          display:flex;flex-direction:column;align-items:center;gap:3px}
+.mode-btn .icon{font-size:18px}
+.mode-btn:hover{background:#252840;color:#e2e8f0}
+.mode-btn.active-bringup{background:#0f2a1a;color:#4ade80;border-color:#166534}
+.mode-btn.active-slam   {background:#1a1a0a;color:#facc15;border-color:#854d0e}
+.mode-btn.active-nav    {background:#0a1a2a;color:#60a5fa;border-color:#1d4ed8}
+.mode-btn.stop-btn      {background:#1f0a0a;color:#f87171;border-color:#7f1d1d}
+.mode-btn.stop-btn:hover{background:#2d0f0f;color:#fca5a5}
+#save-map-btn{width:100%;margin-top:6px;background:#1e1a35;
+              border:1px solid #4c1d95;color:#a78bfa;border-radius:7px;
+              padding:9px;font-size:12px;font-weight:600;cursor:pointer}
+#save-map-btn:hover{background:#2a2248;color:#c4b5fd}
+#save-status{font-size:10px;color:#64748b;text-align:center;
+             margin-top:4px;min-height:14px}
+
+/* ── Joystick ────────────────────────────────────────────── */
+.joy-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+.joy-btn{background:#1e2235;border:1px solid #2d3148;color:#94a3b8;
+         border-radius:7px;padding:10px 0;font-size:18px;cursor:pointer;
+         text-align:center;user-select:none;-webkit-user-select:none;
+         transition:background .1s}
+.joy-btn:active,.joy-btn.pressed{background:#2d3a6b;color:#fff;
+                                  border-color:#3b4fd4}
+#joy-speed{width:100%;margin-top:8px;accent-color:#4f6ef7}
+.joy-speed-row{display:flex;align-items:center;gap:8px;margin-top:6px}
+.joy-speed-row label{font-size:11px;color:#64748b;white-space:nowrap}
+#speed-val{font-size:11px;color:#7c93ff;min-width:30px;font-family:monospace}
+.joy-center-row{display:flex;align-items:center;gap:5px}
+#pump-btn{flex:1;background:#1e2235;border:1px solid #2d3148;
+          color:#94a3b8;border-radius:7px;padding:10px 0;font-size:14px;
+          cursor:pointer;text-align:center;transition:all .2s}
+#pump-btn.on{background:#0f2a1a;color:#4ade80;border-color:#166534}
+
+/* ── Sensors ─────────────────────────────────────────────── */
+.sensor-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.scard{background:#1a1d27;border-radius:6px;padding:8px 10px}
+.scard .slbl{font-size:10px;color:#475569;margin-bottom:2px}
+.scard .sval{font-size:16px;font-weight:600;color:#e2e8f0;font-family:monospace}
+.scard .sunit{font-size:10px;color:#64748b;margin-left:2px}
+#odom-row{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;
+          margin-top:6px}
+
+/* ── Scrollbar ───────────────────────────────────────────── */
+#right-panel::-webkit-scrollbar{width:4px}
+#right-panel::-webkit-scrollbar-track{background:#0f1117}
+#right-panel::-webkit-scrollbar-thumb{background:#2d3148;border-radius:2px}
+
+/* ── Toast ───────────────────────────────────────────────── */
+#toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+       background:#1e2235;border:1px solid #3b4fd4;color:#93c5fd;
+       padding:8px 18px;border-radius:20px;font-size:12px;
+       pointer-events:none;opacity:0;transition:opacity .3s;z-index:999}
+
+/* ── Mobile ──────────────────────────────────────────────── */
+@media(max-width:768px){
+  #main{grid-template-columns:1fr;grid-template-rows:55vw 1fr}
+  #right-panel{overflow-y:auto}
+  #map-panel{min-height:55vw}
+}
+</style>
+</head>
+<body>
+
+<!-- ═══════════════ HEADER ═══════════════ -->
+<div id="header">
+  <div id="logo">AGROVER MR 25.26</div>
+  <div id="mode-badge">IDLE</div>
+  <div class="hflex">
+    <div id="ros-dot" class="dot"></div>
+    <span id="ros-lbl">ROS déconnecté</span>
+    <button id="estop-btn" onclick="emergencyStop()">■ STOP</button>
+  </div>
+</div>
+
+<!-- ═══════════════ MAIN ═══════════════ -->
+<div id="main">
+
+  <!-- ───────── MAP PANEL ───────── -->
+  <div id="map-panel">
+    <div id="map-toolbar">
+      <span id="map-info-lbl">En attente de carte…</span>
+      <div style="margin-left:auto;display:flex;gap:6px">
+        <button onclick="resetMapView()" title="Recentrer la carte">⊙ Centrer</button>
+        <button id="scan-toggle-btn" onclick="toggleScan()" class="active">Laser ●</button>
+        <button id="path-toggle-btn" onclick="togglePath()" class="active">Trajet ●</button>
+        <button id="goal-mode-btn" onclick="toggleGoalMode()">⊕ Définir objectif</button>
+      </div>
+    </div>
+    <canvas id="map-canvas"></canvas>
+    <div id="map-coords">x: — m  y: — m</div>
+    <div id="goal-info">🎯 Objectif envoyé</div>
+    <div id="nav-status">Nav2 : —</div>
+  </div>
+
+  <!-- ───────── RIGHT PANEL ───────── -->
+  <div id="right-panel">
+
+    <!-- CAMÉRA -->
+    <div class="section">
+      <div class="sec-title">📷 Caméra</div>
+      <div id="cam-wrap">
+        <img id="cam-img" src="/video_feed" alt="Caméra"
+             onerror="document.getElementById('cam-err').style.display='flex'"/>
+        <div id="cam-err">Flux indisponible</div>
+      </div>
+    </div>
+
+    <!-- MODES ROS2 -->
+    <div class="section">
+      <div class="sec-title">🤖 Mode ROS2</div>
+      <div class="mode-grid">
+        <button class="mode-btn" id="btn-bringup" onclick="setMode('bringup')">
+          <span class="icon">⚙️</span>Bringup
+        </button>
+        <button class="mode-btn" id="btn-slam" onclick="setMode('slam')">
+          <span class="icon">🗺️</span>SLAM
+        </button>
+        <button class="mode-btn" id="btn-nav" onclick="setMode('nav')">
+          <span class="icon">🧭</span>Nav2
+        </button>
+        <button class="mode-btn stop-btn" onclick="setMode('stop')">
+          <span class="icon">⏹</span>Arrêter
+        </button>
+      </div>
+      <button id="save-map-btn" onclick="saveMap()">💾 Sauvegarder la carte</button>
+      <div id="save-status"></div>
+    </div>
+
+    <!-- JOYSTICK MANUEL -->
+    <div class="section">
+      <div class="sec-title">🕹️ Contrôle manuel</div>
+      <div class="joy-grid">
+        <div></div>
+        <div class="joy-btn" id="btn-z" onpointerdown="joyPress('z')" onpointerup="joyRelease()" onpointerleave="joyRelease()">↑</div>
+        <div></div>
+        <div class="joy-btn" id="btn-q" onpointerdown="joyPress('q')" onpointerup="joyRelease()" onpointerleave="joyRelease()">↺</div>
+        <div class="joy-btn" id="btn-x" onpointerdown="joyPress('x')" onpointerup="joyRelease()" onpointerleave="joyRelease()">■</div>
+        <div class="joy-btn" id="btn-d" onpointerdown="joyPress('d')" onpointerup="joyRelease()" onpointerleave="joyRelease()">↻</div>
+        <div class="joy-btn" id="btn-a" onpointerdown="joyPress('a')" onpointerup="joyRelease()" onpointerleave="joyRelease()">◁</div>
+        <div class="joy-btn" id="btn-s" onpointerdown="joyPress('s')" onpointerup="joyRelease()" onpointerleave="joyRelease()">↓</div>
+        <div class="joy-btn" id="btn-e" onpointerdown="joyPress('e')" onpointerup="joyRelease()" onpointerleave="joyRelease()">▷</div>
+      </div>
+      <div class="joy-speed-row">
+        <label>Vitesse</label>
+        <input type="range" id="joy-speed" min="0.05" max="0.26" step="0.01" value="0.20" oninput="updateSpeed()"/>
+        <span id="speed-val">0.20</span><span style="font-size:11px;color:#475569">m/s</span>
+      </div>
+      <div style="margin-top:8px">
+        <div class="joy-center-row">
+          <div class="joy-btn" id="pump-btn" onclick="togglePump()" style="padding:10px 0;font-size:13px">
+            💧 Pompe OFF
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CAPTEURS & ODOMÈTRIE -->
+    <div class="section">
+      <div class="sec-title">📡 Capteurs &amp; Odométrie</div>
+      <div class="sensor-grid">
+        <div class="scard">
+          <div class="slbl">Température</div>
+          <div class="sval" id="sv-temp">—<span class="sunit">°C</span></div>
+        </div>
+        <div class="scard">
+          <div class="slbl">Humidité</div>
+          <div class="sval" id="sv-hum">—<span class="sunit">%</span></div>
+        </div>
+      </div>
+      <div id="odom-row">
+        <div class="scard">
+          <div class="slbl">x</div>
+          <div class="sval" id="sv-x">0.00<span class="sunit">m</span></div>
+        </div>
+        <div class="scard">
+          <div class="slbl">y</div>
+          <div class="sval" id="sv-y">0.00<span class="sunit">m</span></div>
+        </div>
+        <div class="scard">
+          <div class="slbl">θ</div>
+          <div class="sval" id="sv-th">0<span class="sunit">°</span></div>
+        </div>
+        <div class="scard">
+          <div class="slbl">v lin.</div>
+          <div class="sval" id="sv-v">0.00<span class="sunit">m/s</span></div>
+        </div>
+        <div class="scard">
+          <div class="slbl">ω</div>
+          <div class="sval" id="sv-w">0.00<span class="sunit">r/s</span></div>
+        </div>
+        <div class="scard">
+          <div class="slbl">Dist. obj.</div>
+          <div class="sval" id="sv-dist">—<span class="sunit">m</span></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /right-panel -->
+</div><!-- /main -->
+
+<div id="toast"></div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════════════════════ -->
+<script>
+// ── rosbridge URL (même hôte que Flask, port 9090) ────────────
+const ROS_URL = `ws://${location.hostname}:{{ rosbridge_port }}`;
+
+// ── State ─────────────────────────────────────────────────────
+let ros         = null;
+let rosOK       = false;
+let cmdVelPub   = null;
+let goalPub     = null;
+let estopPub    = null;
+let mapSub      = null;
+let odomSub     = null;
+let scanSub     = null;
+let acmlSub     = null;
+let navStatusSub= null;
+
+let mapData     = null;   // OccupancyGrid info + data
+let mapImage    = null;   // ImageBitmap pré-rendu
+let robotPose   = {x:0, y:0, theta:0};
+let robotPoseNav= null;   // pose AMCL (mode nav)
+let scanPoints  = [];
+let pathHistory = [];
+const MAX_PATH  = 500;
+
+let mapView     = {scale:1, offX:0, offY:0};
+let goalMode    = false;
+let pumpState   = false;
+let currentSpeed= 0.20;
+let joyInterval = null;
+let currentKey  = null;
+
+let showScan    = true;
+let showPath    = true;
+
+let goalPos     = null;   // {wx, wy} dernier objectif envoyé
+let navStatusMsg= '';
+
+// ── Toast ─────────────────────────────────────────────────────
+function toast(msg, duration=2500) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.opacity = '1';
+  clearTimeout(el._t);
+  el._t = setTimeout(()=>el.style.opacity='0', duration);
+}
+
+// ── ROS connection ────────────────────────────────────────────
+function connectROS() {
+  ros = new ROSLIB.Ros({url: ROS_URL});
+  ros.on('connection', () => {
+    rosOK = true;
+    document.getElementById('ros-dot').classList.add('on');
+    document.getElementById('ros-lbl').textContent = 'ROS connecté';
+    toast('✅ ROS2 connecté');
+    setupTopics();
+  });
+  ros.on('error', () => {
+    rosOK = false;
+    document.getElementById('ros-dot').classList.remove('on');
+    document.getElementById('ros-lbl').textContent = 'ROS déconnecté';
+  });
+  ros.on('close', () => {
+    rosOK = false;
+    document.getElementById('ros-dot').classList.remove('on');
+    document.getElementById('ros-lbl').textContent = 'ROS déconnecté';
+    setTimeout(connectROS, 3000);   // reconnexion automatique
+  });
+}
+
+// ── Topics setup ──────────────────────────────────────────────
+function setupTopics() {
+  // ── Publishers ──────────────────────────────────────────────
+  cmdVelPub = new ROSLIB.Topic({
+    ros, name:'/cmd_vel/manual',
+    messageType:'geometry_msgs/Twist'
+  });
+  goalPub = new ROSLIB.Topic({
+    ros, name:'/goal_pose',
+    messageType:'geometry_msgs/PoseStamped'
+  });
+  estopPub = new ROSLIB.Topic({
+    ros, name:'/agrover/estop',
+    messageType:'std_msgs/Bool'
+  });
+
+  // ── Map ─────────────────────────────────────────────────────
+  mapSub = new ROSLIB.Topic({
+    ros, name:'/map',
+    messageType:'nav_msgs/OccupancyGrid',
+    throttle_rate: 500          // max 2 Hz pour la carte (données lourdes)
+  });
+  mapSub.subscribe(handleMap);
+
+  // ── Odometry ────────────────────────────────────────────────
+  odomSub = new ROSLIB.Topic({
+    ros, name:'/odom',
+    messageType:'nav_msgs/Odometry',
+    throttle_rate: 100          // 10 Hz
+  });
+  odomSub.subscribe(handleOdom);
+
+  // ── AMCL pose (mode Nav2) ────────────────────────────────────
+  acmlSub = new ROSLIB.Topic({
+    ros, name:'/amcl_pose',
+    messageType:'geometry_msgs/PoseWithCovarianceStamped',
+    throttle_rate: 200
+  });
+  acmlSub.subscribe(handleAmcl);
+
+  // ── Laser scan ───────────────────────────────────────────────
+  scanSub = new ROSLIB.Topic({
+    ros, name:'/scan',
+    messageType:'sensor_msgs/LaserScan',
+    throttle_rate: 150          // ~7 Hz
+  });
+  scanSub.subscribe(handleScan);
+
+  // ── Nav2 status ──────────────────────────────────────────────
+  navStatusSub = new ROSLIB.Topic({
+    ros, name:'/navigate_to_pose/_action/status',
+    messageType:'action_msgs/GoalStatusArray',
+    throttle_rate: 500
+  });
+  navStatusSub.subscribe(handleNavStatus);
+
+  // ── Température ──────────────────────────────────────────────
+  new ROSLIB.Topic({ros, name:'/agrover/temperature',
+                    messageType:'std_msgs/Float32', throttle_rate:2000})
+    .subscribe(m => { document.getElementById('sv-temp').innerHTML =
+      m.data.toFixed(1)+'<span class="sunit">°C</span>'; });
+
+  new ROSLIB.Topic({ros, name:'/agrover/humidity',
+                    messageType:'std_msgs/Float32', throttle_rate:2000})
+    .subscribe(m => { document.getElementById('sv-hum').innerHTML =
+      m.data.toFixed(1)+'<span class="sunit">%</span>'; });
+}
+
+// ── Map handler ───────────────────────────────────────────────
+function handleMap(msg) {
+  const {width, height, resolution, origin} = msg.info;
+  mapData = {width, height, resolution,
+             ox: origin.position.x, oy: origin.position.y,
+             data: msg.data};
+
+  document.getElementById('map-info-lbl').textContent =
+    `Carte ${width}×${height}  —  résolution ${resolution.toFixed(3)} m/px`;
+
+  // Render map to offscreen canvas
+  const offC = new OffscreenCanvas(width, height);
+  const offCtx = offC.getContext('2d');
+  const imgData = offCtx.createImageData(width, height);
+  const d = imgData.data;
+  for (let i = 0; i < msg.data.length; i++) {
+    const v = msg.data[i];
+    let r, g, b;
+    if      (v < 0)   { r=100; g=108; b=130; }   // inconnu  (gris bleuté)
+    else if (v === 0) { r=220; g=228; b=240; }    // libre    (blanc cassé)
+    else              { r=30;  g=34;  b=50;  }    // occupé   (sombre)
+    d[i*4]=r; d[i*4+1]=g; d[i*4+2]=b; d[i*4+3]=255;
+  }
+  offCtx.putImageData(imgData, 0, 0);
+  offC.convertToBlob().then(b => createImageBitmap(b)).then(bmp => {
+    mapImage = bmp;
+    fitMapToCanvas();
+  });
+}
+
+function fitMapToCanvas() {
+  if (!mapData || !mapImage) return;
+  const canvas = document.getElementById('map-canvas');
+  const cw = canvas.clientWidth, ch = canvas.clientHeight;
+  const scaleX = cw / mapData.width;
+  const scaleY = ch / mapData.height;
+  mapView.scale = Math.min(scaleX, scaleY) * 0.92;
+  const imgW = mapData.width  * mapView.scale;
+  const imgH = mapData.height * mapView.scale;
+  mapView.offX = (cw - imgW) / 2;
+  mapView.offY = (ch - imgH) / 2;
+}
+
+function resetMapView() { fitMapToCanvas(); }
+
+// ── Odometry handler ──────────────────────────────────────────
+function handleOdom(msg) {
+  const p = msg.pose.pose;
+  const t = msg.twist.twist;
+  const q = p.orientation;
+  const theta = Math.atan2(2*(q.w*q.z + q.x*q.y),
+                            1 - 2*(q.y*q.y + q.z*q.z));
+  robotPose = {x: p.position.x, y: p.position.y, theta};
+
+  // Path history
+  if (pathHistory.length === 0 ||
+      Math.hypot(p.position.x - pathHistory[pathHistory.length-1][0],
+                 p.position.y - pathHistory[pathHistory.length-1][1]) > 0.05) {
+    pathHistory.push([p.position.x, p.position.y]);
+    if (pathHistory.length > MAX_PATH) pathHistory.shift();
+  }
+
+  const vx = t.linear.x, wz = t.angular.z;
+  document.getElementById('sv-x').innerHTML  = p.position.x.toFixed(2)+'<span class="sunit">m</span>';
+  document.getElementById('sv-y').innerHTML  = p.position.y.toFixed(2)+'<span class="sunit">m</span>';
+  document.getElementById('sv-th').innerHTML = (theta*180/Math.PI).toFixed(0)+'<span class="sunit">°</span>';
+  document.getElementById('sv-v').innerHTML  = vx.toFixed(2)+'<span class="sunit">m/s</span>';
+  document.getElementById('sv-w').innerHTML  = wz.toFixed(2)+'<span class="sunit">r/s</span>';
+
+  if (goalPos) {
+    const dist = Math.hypot(goalPos.wx - p.position.x, goalPos.wy - p.position.y);
+    document.getElementById('sv-dist').innerHTML = dist.toFixed(2)+'<span class="sunit">m</span>';
+  }
+}
+
+// ── AMCL pose (localization in Nav2 mode) ─────────────────────
+function handleAmcl(msg) {
+  const p = msg.pose.pose;
+  const q = p.orientation;
+  const theta = Math.atan2(2*(q.w*q.z + q.x*q.y),
+                            1 - 2*(q.y*q.y + q.z*q.z));
+  robotPoseNav = {x: p.position.x, y: p.position.y, theta};
+}
+
+// ── Scan handler ──────────────────────────────────────────────
+function handleScan(msg) {
+  if (!showScan) { scanPoints = []; return; }
+  const pose = robotPoseNav || robotPose;
+  const {angle_min, angle_increment, ranges, range_max} = msg;
+  const pts = [];
+  for (let i = 0; i < ranges.length; i+=2) {   // every 2nd point
+    const r = ranges[i];
+    if (r < 0.12 || r > (range_max || 8)) continue;
+    const ang = pose.theta + angle_min + i * angle_increment;
+    pts.push([pose.x + r * Math.cos(ang),
+              pose.y + r * Math.sin(ang)]);
+  }
+  scanPoints = pts;
+}
+
+// ── Nav2 status ───────────────────────────────────────────────
+function handleNavStatus(msg) {
+  if (!msg.status_list || msg.status_list.length === 0) {
+    navStatusMsg = '';
+    document.getElementById('nav-status').style.display = 'none';
+    return;
+  }
+  const last = msg.status_list[msg.status_list.length - 1];
+  const STATUS = {1:'En attente', 2:'Active', 4:'Annulé', 5:'Interrompu', 6:'✅ Objectif atteint'};
+  navStatusMsg = 'Nav2 : ' + (STATUS[last.status] || `status ${last.status}`);
+  const el = document.getElementById('nav-status');
+  el.textContent = navStatusMsg;
+  el.style.display = 'block';
+  if (last.status === 6) {
+    toast('✅ Objectif atteint !');
+    setTimeout(()=>{ el.style.display='none'; goalPos=null; }, 3000);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MAP RENDERING (requestAnimationFrame loop)
+// ═══════════════════════════════════════════════════════════════
+
+function worldToCanvas(wx, wy) {
+  if (!mapData) return [0,0];
+  const cx = (wx - mapData.ox) / mapData.resolution;
+  const cy = mapData.height - (wy - mapData.oy) / mapData.resolution;
+  return [cx * mapView.scale + mapView.offX,
+          cy * mapView.scale + mapView.offY];
+}
+
+function canvasToWorld(cx, cy) {
+  if (!mapData) return [0,0];
+  const mx = (cx - mapView.offX) / mapView.scale;
+  const my = (cy - mapView.offY) / mapView.scale;
+  return [mx * mapData.resolution + mapData.ox,
+          (mapData.height - my) * mapData.resolution + mapData.oy];
+}
+
+function drawRobot(ctx, pose, color, size) {
+  const [px, py] = worldToCanvas(pose.x, pose.y);
+  ctx.save();
+  ctx.translate(px, py);
+  ctx.rotate(-pose.theta);    // canvas Y is inverted vs ROS
+  // Body
+  ctx.fillStyle = color;
+  ctx.strokeStyle = '#fff4';
+  ctx.lineWidth = 1;
+  const s = size;
+  ctx.beginPath();
+  ctx.moveTo(s*1.6, 0);
+  ctx.lineTo(-s, -s*0.9);
+  ctx.lineTo(-s*0.5, 0);
+  ctx.lineTo(-s, s*0.9);
+  ctx.closePath();
+  ctx.fill(); ctx.stroke();
+  // Direction dot
+  ctx.beginPath();
+  ctx.arc(s*1.0, 0, 2, 0, Math.PI*2);
+  ctx.fillStyle = '#fff';
+  ctx.fill();
+  ctx.restore();
+}
+
+function renderFrame() {
+  const canvas = document.getElementById('map-canvas');
+  const rect   = canvas.getBoundingClientRect();
+  if (canvas.width !== rect.width || canvas.height !== rect.height) {
+    canvas.width  = rect.width;
+    canvas.height = rect.height;
+    fitMapToCanvas();
+  }
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Background
+  ctx.fillStyle = '#090b10';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+  // Map image
+  if (mapImage && mapData) {
+    const iw = mapData.width  * mapView.scale;
+    const ih = mapData.height * mapView.scale;
+    ctx.drawImage(mapImage, mapView.offX, mapView.offY, iw, ih);
+  } else {
+    // No map yet — show grid
+    ctx.strokeStyle = '#1e2235';
+    ctx.lineWidth = 1;
+    for (let x=0; x<canvas.width; x+=40) {
+      ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,canvas.height); ctx.stroke();
+    }
+    for (let y=0; y<canvas.height; y+=40) {
+      ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(canvas.width,y); ctx.stroke();
+    }
+    ctx.fillStyle = '#2d3148';
+    ctx.font = '13px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('En attente de la carte SLAM…', canvas.width/2, canvas.height/2);
+  }
+
+  if (!mapData) { requestAnimationFrame(renderFrame); return; }
+
+  // Path history
+  if (showPath && pathHistory.length > 1) {
+    ctx.strokeStyle = '#3b82f688';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4,3]);
+    ctx.beginPath();
+    const [x0,y0] = worldToCanvas(pathHistory[0][0], pathHistory[0][1]);
+    ctx.moveTo(x0, y0);
+    for (let i=1; i<pathHistory.length; i++) {
+      const [xi,yi] = worldToCanvas(pathHistory[i][0], pathHistory[i][1]);
+      ctx.lineTo(xi, yi);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // Laser scan
+  if (showScan && scanPoints.length > 0) {
+    ctx.fillStyle = '#fbbf24cc';
+    for (const [wx,wy] of scanPoints) {
+      const [cx,cy] = worldToCanvas(wx, wy);
+      ctx.beginPath(); ctx.arc(cx, cy, 1.5, 0, Math.PI*2); ctx.fill();
+    }
+  }
+
+  // Goal marker
+  if (goalPos) {
+    const [gx, gy] = worldToCanvas(goalPos.wx, goalPos.wy);
+    ctx.strokeStyle = '#22c55e';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(gx, gy, 10, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(gx-14,gy); ctx.lineTo(gx+14,gy); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(gx,gy-14); ctx.lineTo(gx,gy+14); ctx.stroke();
+  }
+
+  // AMCL robot (Nav2 mode) — blue
+  if (robotPoseNav) {
+    drawRobot(ctx, robotPoseNav, '#60a5fa', 8);
+  }
+  // Odometry robot — red/orange
+  drawRobot(ctx, robotPose, '#f97316', robotPoseNav ? 5 : 9);
+
+  // Origin cross
+  const [ox, oy2] = worldToCanvas(0, 0);
+  ctx.strokeStyle = '#475569';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(ox-8,oy2); ctx.lineTo(ox+8,oy2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(ox,oy2-8); ctx.lineTo(ox,oy2+8); ctx.stroke();
+
+  requestAnimationFrame(renderFrame);
+}
+
+// ─── Canvas interactions ───────────────────────────────────────
+
+const mapCanvas = document.getElementById('map-canvas');
+
+// Mouse / touch move → coords display
+mapCanvas.addEventListener('mousemove', e => {
+  if (!mapData) return;
+  const r = mapCanvas.getBoundingClientRect();
+  const [wx, wy] = canvasToWorld(e.clientX - r.left, e.clientY - r.top);
+  document.getElementById('map-coords').textContent =
+    `x: ${wx.toFixed(2)} m  y: ${wy.toFixed(2)} m`;
+});
+
+// Click → set goal or zoom
+let lastTap = 0;
+mapCanvas.addEventListener('click', e => {
+  if (!mapData) return;
+  const r = mapCanvas.getBoundingClientRect();
+  const [wx, wy] = canvasToWorld(e.clientX - r.left, e.clientY - r.top);
+  if (goalMode) sendGoal(wx, wy);
+});
+
+// Wheel → zoom
+mapCanvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.12 : 0.89;
+  const r = mapCanvas.getBoundingClientRect();
+  const cx = e.clientX - r.left, cy = e.clientY - r.top;
+  mapView.offX = cx - factor * (cx - mapView.offX);
+  mapView.offY = cy - factor * (cy - mapView.offY);
+  mapView.scale *= factor;
+}, {passive:false});
+
+// Touch drag to pan
+let lastTouch = null;
+mapCanvas.addEventListener('touchstart', e => {
+  if (e.touches.length === 1) lastTouch = {x:e.touches[0].clientX, y:e.touches[0].clientY};
+}, {passive:true});
+mapCanvas.addEventListener('touchmove', e => {
+  if (e.touches.length === 1 && lastTouch && !goalMode) {
+    const dx = e.touches[0].clientX - lastTouch.x;
+    const dy = e.touches[0].clientY - lastTouch.y;
+    mapView.offX += dx; mapView.offY += dy;
+    lastTouch = {x:e.touches[0].clientX, y:e.touches[0].clientY};
+  }
+}, {passive:true});
+mapCanvas.addEventListener('touchend', e => { lastTouch=null; });
+
+// ─── Goal mode ─────────────────────────────────────────────────
+
+function toggleGoalMode() {
+  goalMode = !goalMode;
+  const btn = document.getElementById('goal-mode-btn');
+  mapCanvas.style.cursor = goalMode ? 'crosshair' : 'default';
+  btn.classList.toggle('active', goalMode);
+  btn.textContent = goalMode ? '✕ Annuler objectif' : '⊕ Définir objectif';
+  if (!goalMode) toast('Mode objectif désactivé');
+}
+
+function sendGoal(wx, wy) {
+  if (!rosOK || !goalPub) { toast('⚠️ ROS non connecté'); return; }
+  goalPos = {wx, wy};
+  const msg = new ROSLIB.Message({
+    header: {frame_id: 'map', stamp: {secs:0, nsecs:0}},
+    pose: {
+      position:    {x: wx, y: wy, z: 0},
+      orientation: {x:0, y:0, z:0, w:1}   // cap vers l'est (θ=0)
+    }
+  });
+  goalPub.publish(msg);
+  goalMode = false;
+  mapCanvas.style.cursor = 'default';
+  document.getElementById('goal-mode-btn').classList.remove('active');
+  document.getElementById('goal-mode-btn').textContent = '⊕ Définir objectif';
+  const el = document.getElementById('goal-info');
+  el.style.display = 'block';
+  el.textContent = `🎯 Objectif → (${wx.toFixed(2)}, ${wy.toFixed(2)}) m`;
+  setTimeout(() => el.style.display='none', 3000);
+  toast(`🎯 Objectif envoyé : (${wx.toFixed(2)}, ${wy.toFixed(2)}) m`);
+}
+
+function toggleScan() {
+  showScan = !showScan;
+  const btn = document.getElementById('scan-toggle-btn');
+  btn.textContent = showScan ? 'Laser ●' : 'Laser ○';
+  btn.classList.toggle('active', showScan);
+}
+
+function togglePath() {
+  showPath = !showPath;
+  const btn = document.getElementById('path-toggle-btn');
+  btn.textContent = showPath ? 'Trajet ●' : 'Trajet ○';
+  btn.classList.toggle('active', showPath);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  MODE ROS2 (boutons)
+// ═══════════════════════════════════════════════════════════════
+
+function setMode(mode) {
+  const label = {bringup:'Bringup', slam:'SLAM', nav:'Nav2', stop:'Arrêt'}[mode] || mode;
+  toast(`Lancement mode : ${label}…`);
+  fetch('/api/launch', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({mode})
+  })
+  .then(r => r.json())
+  .then(d => {
+    const m = d.mode || 'idle';
+    updateModeBadge(m);
+    if (d.error) toast('❌ ' + d.error);
+    else toast(`✅ Mode ${label} ${d.status === 'stopped' ? 'arrêté' : 'lancé'}`);
+  })
+  .catch(() => toast('❌ Erreur réseau'));
+}
+
+function updateModeBadge(mode) {
+  const badge = document.getElementById('mode-badge');
+  badge.className = '';
+  badge.classList.add(mode);
+  badge.textContent = {idle:'IDLE', bringup:'BRINGUP', slam:'SLAM', nav:'NAV2'}[mode] || mode.toUpperCase();
+  ['bringup','slam','nav'].forEach(m => {
+    const btn = document.getElementById(`btn-${m}`);
+    if (btn) { btn.className='mode-btn'; if(m===mode) btn.classList.add(`active-${m}`); }
+  });
+}
+
+function saveMap() {
+  const status = document.getElementById('save-status');
+  status.textContent = '💾 Sauvegarde en cours…';
+  status.style.color = '#94a3b8';
+  fetch('/api/save_map', {method:'POST', headers:{'Content-Type':'application/json'},
+                          body:JSON.stringify({})})
+    .then(r=>r.json())
+    .then(d => {
+      if (d.status === 'saved') {
+        status.textContent = '✅ Carte sauvegardée : ' + d.path;
+        status.style.color = '#4ade80';
+        toast('✅ Carte sauvegardée !');
+      } else {
+        status.textContent = '❌ Erreur : ' + (d.detail || 'inconnue');
+        status.style.color = '#f87171';
+      }
+    })
+    .catch(() => { status.textContent = '❌ Erreur réseau'; status.style.color='#f87171'; });
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  CONTRÔLE MANUEL  (rosbridge → /cmd_vel/manual)
+// ═══════════════════════════════════════════════════════════════
+
+const JOY_CMDS = {
+  z: ()=> twistMsg( spd(),    0),   // avancer
+  s: ()=> twistMsg(-spd(),    0),   // reculer
+  q: ()=> twistMsg(  0,    +omg()), // pivot gauche
+  d: ()=> twistMsg(  0,    -omg()), // pivot droite
+  a: ()=> twistMsg( spd()*0.6, +omg()*0.7),  // courbe gauche
+  e: ()=> twistMsg( spd()*0.6, -omg()*0.7),  // courbe droite
+  x: ()=> twistMsg(  0,       0),   // stop
+};
+
+function spd() { return parseFloat(document.getElementById('joy-speed').value); }
+function omg() { return spd() / 0.15; }   // ω ≈ v / (L/2)
+
+function twistMsg(vx, wz) {
+  return new ROSLIB.Message({
+    linear:  {x:vx, y:0, z:0},
+    angular: {x:0,  y:0, z:wz}
+  });
+}
+
+function joyPress(key) {
+  if (currentKey === key) return;
+  joyRelease();
+  currentKey = key;
+  const btn = document.getElementById('btn-' + key);
+  if (btn) btn.classList.add('pressed');
+  if (key === 'x') { publishTwist(0,0); return; }
+  const fn = JOY_CMDS[key];
+  if (!fn) return;
+  if (rosOK && cmdVelPub) cmdVelPub.publish(fn());
+  joyInterval = setInterval(() => {
+    if (rosOK && cmdVelPub) cmdVelPub.publish(fn());
+  }, 100);
+}
+
+function joyRelease() {
+  if (currentKey && currentKey !== 'x') {
+    if (rosOK && cmdVelPub) cmdVelPub.publish(twistMsg(0,0));
+  }
+  if (joyInterval) { clearInterval(joyInterval); joyInterval=null; }
+  if (currentKey) {
+    const btn = document.getElementById('btn-' + currentKey);
+    if (btn) btn.classList.remove('pressed');
+  }
+  currentKey = null;
+}
+
+function publishTwist(vx, wz) {
+  if (rosOK && cmdVelPub) cmdVelPub.publish(twistMsg(vx, wz));
+}
+
+function updateSpeed() {
+  currentSpeed = parseFloat(document.getElementById('joy-speed').value);
+  document.getElementById('speed-val').textContent = currentSpeed.toFixed(2);
+}
+
+// Keyboard support
+document.addEventListener('keydown', e => {
+  if (['INPUT','TEXTAREA'].includes(document.activeElement.tagName)) return;
+  const k = e.key.toLowerCase();
+  if (['z','s','q','d','a','e','x'].includes(k) && currentKey !== k) joyPress(k);
+});
+document.addEventListener('keyup', () => joyRelease());
+
+// ── Pompe ──────────────────────────────────────────────────────
+function togglePump() {
+  pumpState = !pumpState;
+  fetch('/api/pump', {method:'POST', headers:{'Content-Type':'application/json'},
+                      body:JSON.stringify({state: pumpState?1:0})});
+  const btn = document.getElementById('pump-btn');
+  btn.textContent = pumpState ? '💧 Pompe ON' : '💧 Pompe OFF';
+  btn.classList.toggle('on', pumpState);
+  toast(pumpState ? '💧 Pompe activée' : '💧 Pompe arrêtée');
+}
+
+// ── Arrêt d'urgence ────────────────────────────────────────────
+function emergencyStop() {
+  joyRelease();
+  publishTwist(0, 0);
+  if (rosOK && estopPub)
+    estopPub.publish(new ROSLIB.Message({data: true}));
+  fetch('/api/launch', {method:'POST', headers:{'Content-Type':'application/json'},
+                        body:JSON.stringify({mode:'stop'})});
+  updateModeBadge('idle');
+  toast('🛑 ARRÊT D\'URGENCE', 4000);
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  STATUS POLLING (toutes les 5 s)
+// ═══════════════════════════════════════════════════════════════
+
+function pollStatus() {
+  fetch('/api/status').then(r=>r.json()).then(d => {
+    if (d.mode) updateModeBadge(d.mode);
+  }).catch(()=>{});
+}
+
+// ═══════════════════════════════════════════════════════════════
+//  INIT
+// ═══════════════════════════════════════════════════════════════
+
+connectROS();
+requestAnimationFrame(renderFrame);
+setInterval(pollStatus, 5000);
+</script>
+</body>
+</html>
